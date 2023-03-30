@@ -11,7 +11,6 @@ import (
 
 func RunClient() {
 	conn, err := net.Dial("tcp", "127.0.0.1:1234")
-
 	if err != nil {
 		log.Errorf("create client connction error: %v", err)
 		return
