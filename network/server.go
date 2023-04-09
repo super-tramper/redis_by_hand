@@ -1,69 +1,58 @@
 package network
 
 import (
-	"bufio"
-	log "github.com/sirupsen/logrus"
-	"net"
+	"flag"
+	"fmt"
+	"github.com/panjf2000/gnet"
+	"github.com/panjf2000/gnet/pkg/pool/goroutine"
+	"redis_by_hand/network/frame"
+	"redis_by_hand/network/packet"
+	"time"
 )
 
-const maxMsg = 4096
+const PORT = 1234
 
-type bufArray [4 + maxMsg + 1]byte
+type customCodecServer struct {
+	*gnet.EventServer
+	addr       string
+	multicore  bool
+	async      bool
+	codec      gnet.ICodec
+	workerPool *goroutine.Pool
+}
+
+func (cs *customCodecServer) OnInitComplete(srv gnet.Server) (action gnet.Action) {
+	return
+}
+
+func customCodecServe(addr string, multicore, async bool, codec gnet.ICodec) {
+	var err error
+	codec = frame.Frame{}
+	cs := &customCodecServer{addr: addr, multicore: multicore, async: async, codec: codec, workerPool: goroutine.Default()}
+	err = gnet.Serve(cs, addr, gnet.WithMulticore(multicore), gnet.WithTCPKeepAlive(time.Minute*5), gnet.WithCodec(codec))
+	if err != nil {
+		panic(err)
+	}
+}
 
 func RunServer() {
-	addr := ":1234"
-	ln, err := net.Listen("tcp", addr)
+	var port int
+	var multicore bool
+	flag.IntVar(&port, "port", PORT, "server port")
+	flag.BoolVar(&multicore, "multicore", false, "multicore")
+	flag.Parse()
+	addr := fmt.Sprintf("tcp://:%d", port)
+	customCodecServe(addr, multicore, false, nil)
+}
+
+func (cs *customCodecServer) React(framePayload []byte, c gnet.Conn) (out []byte, action gnet.Action) {
+	var p packet.Packet
+	err := p.Decode(framePayload)
 	if err != nil {
-		log.Errorf("runserver error: %v", err)
+		fmt.Println("react: packet decode error:", err)
+		action = gnet.Close // close the connection
+		return
 	}
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			log.Infof("accept error: %v", err)
-			continue
-		}
-		defer conn.Close()
-		go handleConnection(conn)
-	}
-}
-
-func handleConnection(conn net.Conn) {
-	// 处理连接产生panic时从错误恢复，保障server能正常运行
-	defer func() {
-		if err := recover(); err != nil {
-			log.Errorf("panic: %v", err)
-		}
-	}()
-
-	for {
-		received, err := readFromClient(conn)
-		if err != nil {
-			log.Errorf("read from client error: %v", err)
-			panic(err)
-		}
-		msg := "echo: " + received
-		if err := sendToClient(msg, conn); err != nil {
-			log.Errorf("send to client error: %v", err)
-			panic(err)
-		}
-	}
-}
-
-func readFromClient(conn net.Conn) (string, error) {
-	reader := bufio.NewReader(conn)
-	var buf [128]byte
-	n, err := reader.Read(buf[:])
-	if err != nil {
-		log.Errorf("read from client failed: %v", err)
-		return "Error", err
-	}
-	recvStr := string(buf[:n])
-	return recvStr, nil
-}
-
-func sendToClient(msg string, conn net.Conn) error {
-	if _, err := conn.Write([]byte(msg)); err != nil {
-		return err
-	}
-	return nil
+	out = []byte{'h', 'i'}
+	return
 }
