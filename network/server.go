@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/panjf2000/gnet"
 	"github.com/panjf2000/gnet/pkg/pool/goroutine"
+	log "github.com/sirupsen/logrus"
 	"redis_by_hand/network/frame"
 	"redis_by_hand/network/packet"
 	"time"
@@ -46,13 +47,27 @@ func RunServer() {
 }
 
 func (cs *customCodecServer) React(framePayload []byte, c gnet.Conn) (out []byte, action gnet.Action) {
-	var p packet.Packet
-	err := p.Decode(framePayload)
-	if err != nil {
-		fmt.Println("react: packet decode error:", err)
-		action = gnet.Close // close the connection
+	var req packet.ReqPacket
+	if err := req.Decode(framePayload); err != nil {
+		log.Errorf("react packet decode error: %v", err)
+		action = gnet.Close
 		return
 	}
-	out = []byte{'h', 'i'}
+	res, err := doRequest(&req)
+	if err != nil {
+		log.Errorf("react: request error: %v", err)
+		action = gnet.Close
+		return
+	}
+
+	if out, err = res.Encode(); err != nil {
+		log.Errorf("react error: %v", err)
+		action = gnet.Close
+		return
+	}
 	return
+}
+
+func doRequest(req *packet.ReqPacket) (*packet.ResPacket, error) {
+
 }
