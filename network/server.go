@@ -11,7 +11,14 @@ import (
 	"time"
 )
 
-const PORT = 1234
+const PORT = 1235
+const (
+	ResOk  = int32(0)
+	ResErr = int32(1)
+	ResNx  = int32(2)
+)
+
+var DB = make(map[string]string)
 
 type customCodecServer struct {
 	*gnet.EventServer
@@ -47,9 +54,9 @@ func RunServer() {
 }
 
 func (cs *customCodecServer) React(framePayload []byte, c gnet.Conn) (out []byte, action gnet.Action) {
-	var req packet.ReqPacket
+	req := packet.ReqPacket{}
 	if err := req.Decode(framePayload); err != nil {
-		log.Errorf("react packet decode error: %v", err)
+		log.Errorf("React: packet decode error: %v", err)
 		action = gnet.Close
 		return
 	}
@@ -68,6 +75,54 @@ func (cs *customCodecServer) React(framePayload []byte, c gnet.Conn) (out []byte
 	return
 }
 
-func doRequest(req *packet.ReqPacket) (*packet.ResPacket, error) {
+func doRequest(req *packet.ReqPacket) (res *packet.ResPacket, err error) {
+	cmdCnt := req.StrCnt
 
+	if int(cmdCnt) != len(req.Payload) {
+		err = fmt.Errorf("bad request")
+	}
+
+	cmd := req.Payload[0].Str
+	if cmdCnt == 2 && cmd == "get" {
+		res = doGet(req)
+	} else if cmdCnt == 3 && cmd == "set" {
+		res = doSet(req)
+	} else if cmdCnt == 2 && cmd == "del" {
+		res = doDel(req)
+	} else {
+		res = &packet.ResPacket{Status: ResErr, Data: "Unknown cmd"}
+	}
+	return
+}
+
+func doGet(req *packet.ReqPacket) (res *packet.ResPacket) {
+	res = &packet.ResPacket{}
+	key := req.Payload[1].Str
+
+	if val, ok := DB[key]; ok {
+		res.Status = ResOk
+		res.Data = val
+		return
+	}
+	res.Status = ResNx
+	return
+}
+
+func doSet(req *packet.ReqPacket) (res *packet.ResPacket) {
+	res = &packet.ResPacket{}
+	key := req.Payload[1].Str
+	val := req.Payload[2].Str
+
+	DB[key] = val
+	res.Status = ResOk
+	return
+}
+
+func doDel(req *packet.ReqPacket) (res *packet.ResPacket) {
+	res = &packet.ResPacket{}
+	key := req.Payload[1].Str
+
+	delete(DB, key)
+	res.Status = ResOk
+	return
 }

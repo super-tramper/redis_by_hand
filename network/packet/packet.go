@@ -40,10 +40,10 @@ type ResPacket struct {
 
 func (req *ReqPacket) Decode(payload []byte) error {
 	buffer := bytes.NewBuffer(payload)
-	// read StrCnt
-	if err := binary.Read(buffer, binary.BigEndian, req.StrCnt); err != nil {
+	if err := binary.Read(buffer, binary.BigEndian, &req.StrCnt); err != nil {
 		return err
 	}
+
 	// read body
 	for i := int32(0); i < req.StrCnt; i++ {
 		if err := req.DecodeBody(buffer); err != nil {
@@ -71,14 +71,16 @@ func (req *ReqPacket) Encode() ([]byte, error) {
 }
 
 func (req *ReqPacket) DecodeBody(buffer *bytes.Buffer) error {
-	var body *ReqBody
-	if err := binary.Read(buffer, binary.BigEndian, body.StrLen); err != nil {
+	body := &ReqBody{}
+	if err := binary.Read(buffer, binary.BigEndian, &body.StrLen); err != nil {
 		return err
 	}
+
 	body.Str = string(buffer.Next(int(body.StrLen)))
 	if len(body.Str) != int(body.StrLen) {
 		return fmt.Errorf("expected length: %d, got %s", body.StrLen, body.Str)
 	}
+
 	req.Payload = append(req.Payload, body)
 	return nil
 }
@@ -100,7 +102,7 @@ func (req *ReqPacket) EncodeBody(buffer *bytes.Buffer) error {
 func (res *ResPacket) Decode(payload []byte) error {
 	buffer := bytes.NewBuffer(payload)
 	// read Status
-	if err := binary.Read(buffer, binary.BigEndian, res.Status); err != nil {
+	if err := binary.Read(buffer, binary.BigEndian, &res.Status); err != nil {
 		return err
 	}
 	// read Data

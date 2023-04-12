@@ -8,6 +8,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"net"
 	"os"
+	"redis_by_hand/network/frame"
+	"redis_by_hand/network/packet"
 	"strings"
 )
 
@@ -27,36 +29,30 @@ func RunClient() {
 			log.Errorf("send to server error: %v", err)
 			continue
 		}
-		content, err := readFromServer(conn)
+		resp, err := readFromServer(conn)
 		if err != nil {
-			fmt.Println(err)
 			log.Errorf("client read error: %v", err)
+			continue
 		}
-		fmt.Println(string(content))
+		fmt.Println("result: status", resp.Status, "data", resp.Data)
 	}
 }
 
 func query(conn net.Conn) error {
-	ic := make([]byte, 0)
-	buffer := bytes.NewBuffer(ic)
-	reader := bufio.NewReader(os.Stdin)
-	input, _ := reader.ReadString('\n')
-	inputContent := strings.Trim(input, "\r\n")
-
-	if strings.ToUpper(inputContent) == "Q" {
-		os.Exit(0)
-	}
-
-	length := uint32(4 + len(inputContent))
-	if length > MaxMsg {
-		return fmt.Errorf("wrong frame length %d", length)
-	}
-	if err := binary.Write(buffer, binary.BigEndian, length); err != nil {
+	req, err := readFromRepl()
+	if err != nil {
 		return err
 	}
-	buffer.Write([]byte(inputContent))
 
-	_, err := conn.Write(buffer.Bytes())
+	var reqFrame frame.Frame
+	buffer := bytes.NewBuffer(reqFrame)
+	length := int32(len(req) + 4)
+	if err = binary.Write(buffer, binary.BigEndian, &length); err != nil {
+		return err
+	}
+	buffer.Write(req)
+
+	_, err = conn.Write(buffer.Bytes())
 	if err != nil {
 		log.Errorf("client send message failed: %v", err)
 		return err
@@ -64,22 +60,52 @@ func query(conn net.Conn) error {
 	return nil
 }
 
-func readFromServer(conn net.Conn) ([]byte, error) {
-	buf := make([]byte, MaxMsg+4)
-	if _, err := conn.Read(buf); err != nil {
+// 从输入中读取内容，构造reqPacket
+func readFromRepl() ([]byte, error) {
+	reader := bufio.NewReader(os.Stdin)
+	input, _ := reader.ReadString('\n')
+
+	cmd := strings.Split(input, " ")
+
+	req := &packet.ReqPacket{}
+	req.StrCnt = int32(len(cmd))
+
+	for _, c := range cmd {
+		content := strings.Trim(c, "\r\n")
+		reqBody := &packet.ReqBody{
+			StrLen: int32(len(content)),
+			Str:    content,
+		}
+		req.Payload = append(req.Payload, reqBody)
+	}
+
+	return req.Encode()
+}
+
+func readFromServer(conn net.Conn) (*packet.ResPacket, error) {
+	framePayload, err := DecodeFrame(conn)
+	if err != nil {
 		return nil, err
 	}
 
-	buffer := bytes.NewBuffer(buf)
-
-	var length uint32
-	if err := binary.Read(buffer, binary.BigEndian, &length); err != nil {
+	resp := &packet.ResPacket{}
+	if err := resp.Decode(framePayload); err != nil {
 		return nil, err
 	}
 
-	if length > 4+MaxMsg {
-		return nil, fmt.Errorf("received data exceeded limitation: %d", length)
+	return resp, nil
+}
+
+func DecodeFrame(conn net.Conn) ([]byte, error) {
+	b := make([]byte, MaxMsg+4)
+	if _, err := conn.Read(b); err != nil {
+		return nil, err
 	}
 
-	return buf[4:length], nil
+	buffer := bytes.NewBuffer(b)
+	header := int32(0)
+	if err := binary.Read(buffer, binary.BigEndian, &header); err != nil {
+		return nil, err
+	}
+	return b[4:header], nil
 }
