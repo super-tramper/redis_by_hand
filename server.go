@@ -110,7 +110,7 @@ func doGet(req *packet.ReqPacket) (res *packet.ResPacket) {
 
 	key.Node.HCode = tools.StrHash([]byte(key.Key), uint64(len(key.Key)))
 
-	node := g_data.db.Lookup(&key.Node, entryEq)
+	node := g_data.db.Lookup(&key.Node, datastructure.EntryEq)
 	if node == nil {
 		res.Status = ResNx
 		return
@@ -134,7 +134,7 @@ func doSet(req *packet.ReqPacket) (res *packet.ResPacket) {
 
 	key.Node.HCode = tools.StrHash([]byte(key.Key), uint64(len(key.Key)))
 
-	node := g_data.db.Lookup(&key.Node, entryEq)
+	node := g_data.db.Lookup(&key.Node, datastructure.EntryEq)
 	if node == nil {
 		ent := datastructure.Entry{}
 		ent.Key = key.Key
@@ -156,14 +156,8 @@ func doDel(req *packet.ReqPacket) (res *packet.ResPacket) {
 	key.Key = req.Payload[1].Str
 	key.Node.HCode = tools.StrHash([]byte(key.Key), uint64(len(key.Key)))
 
-	g_data.db.Pop(&key.Node, entryEq)
+	g_data.db.Pop(&key.Node, datastructure.EntryEq)
 
 	res.Status = ResOk
 	return
-}
-
-func entryEq(l *hashtable.HNode, r *hashtable.HNode) bool {
-	le := (*datastructure.Entry)(unsafe.Pointer(l))
-	re := (*datastructure.Entry)(unsafe.Pointer(r))
-	return l.HCode == r.HCode && le.Key == re.Key
 }

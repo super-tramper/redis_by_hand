@@ -24,7 +24,11 @@ func InitHashTable(n uint64) *HTab {
 func (h *HTab) Insert(node *HNode) {
 	pos := node.HCode & h.mask
 	next := (**HNode)(h.tab[pos])
-	node.Next = *next
+	if next == nil {
+		node.Next = nil
+	} else {
+		node.Next = *next
+	}
 	h.tab[pos] = &node
 	h.size++
 }
@@ -40,6 +44,9 @@ func (h *HTab) LookUp(key *HNode, cmp func(*HNode, *HNode) bool) **HNode {
 	for from != nil {
 		if cmp(*from, key) {
 			return from
+		}
+		if *from == nil {
+			break
 		}
 		from = &(*from).Next
 	}
