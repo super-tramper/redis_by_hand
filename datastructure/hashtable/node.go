@@ -35,6 +35,7 @@ func (h *HTab) LookUp(key *HNode, cmp func(*HNode, *HNode) bool) **HNode {
 	}
 
 	pos := key.HCode & h.mask
+	// 找到【指向目标节点的指针的地址】，它可以是目标节点上一节点的地址，也可以是链表的头节点，便于后续的删除
 	from := &h.tab[pos]
 
 	for *from != nil {
