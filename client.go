@@ -1,4 +1,4 @@
-package network
+package main
 
 import (
 	"bufio"
@@ -14,8 +14,9 @@ import (
 )
 
 const MaxMsg = 4096
+const PORT = 1234
 
-func RunClient() {
+func main() {
 	addr := fmt.Sprintf("127.0.0.1:%d", PORT)
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {

@@ -1,4 +1,4 @@
-package network
+package main
 
 import (
 	"flag"
@@ -6,19 +6,26 @@ import (
 	"github.com/panjf2000/gnet"
 	"github.com/panjf2000/gnet/pkg/pool/goroutine"
 	log "github.com/sirupsen/logrus"
+	"redis_by_hand/datastructure"
+	"redis_by_hand/datastructure/hashtable"
 	"redis_by_hand/network/frame"
 	"redis_by_hand/network/packet"
+	"redis_by_hand/tools"
 	"time"
+	"unsafe"
 )
 
-const PORT = 1235
+const PORT = 1234
+const MaxMsg = 4096
 const (
 	ResOk  = int32(0)
 	ResErr = int32(1)
 	ResNx  = int32(2)
 )
 
-var DB = make(map[string]string)
+var g_data = struct {
+	db hashtable.HMap
+}{}
 
 type customCodecServer struct {
 	*gnet.EventServer
@@ -43,7 +50,7 @@ func customCodecServe(addr string, multicore, async bool, codec gnet.ICodec) {
 	}
 }
 
-func RunServer() {
+func main() {
 	var port int
 	var multicore bool
 	flag.IntVar(&port, "port", PORT, "server port")
@@ -97,32 +104,66 @@ func doRequest(req *packet.ReqPacket) (res *packet.ResPacket, err error) {
 
 func doGet(req *packet.ReqPacket) (res *packet.ResPacket) {
 	res = &packet.ResPacket{}
-	key := req.Payload[1].Str
 
-	if val, ok := DB[key]; ok {
-		res.Status = ResOk
-		res.Data = val
+	key := datastructure.Entry{}
+	key.Key = req.Payload[1].Str
+
+	key.Node.HCode = tools.StrHash([]byte(key.Key), uint64(len(key.Key)))
+
+	node := g_data.db.Lookup(&key.Node, entryEq)
+	if node == nil {
+		res.Status = ResNx
 		return
 	}
-	res.Status = ResNx
+
+	val := (*datastructure.Entry)(unsafe.Pointer(node)).Val
+	if len(val) > MaxMsg {
+		panic("value too long.")
+	}
+	res.Data = val
+	res.Status = ResOk
+
 	return
 }
 
 func doSet(req *packet.ReqPacket) (res *packet.ResPacket) {
 	res = &packet.ResPacket{}
-	key := req.Payload[1].Str
+	key := datastructure.Entry{}
+	key.Key = req.Payload[1].Str
 	val := req.Payload[2].Str
 
-	DB[key] = val
+	key.Node.HCode = tools.StrHash([]byte(key.Key), uint64(len(key.Key)))
+
+	node := g_data.db.Lookup(&key.Node, entryEq)
+	if node == nil {
+		ent := datastructure.Entry{}
+		ent.Key = key.Key
+		ent.Node.HCode = key.Node.HCode
+		ent.Val = req.Payload[2].Str
+		g_data.db.Insert(&ent.Node)
+	} else {
+		(*datastructure.Entry)(unsafe.Pointer(node)).Val = val
+	}
+
 	res.Status = ResOk
+
 	return
 }
 
 func doDel(req *packet.ReqPacket) (res *packet.ResPacket) {
 	res = &packet.ResPacket{}
-	key := req.Payload[1].Str
+	key := datastructure.Entry{}
+	key.Key = req.Payload[1].Str
+	key.Node.HCode = tools.StrHash([]byte(key.Key), uint64(len(key.Key)))
 
-	delete(DB, key)
+	g_data.db.Pop(&key.Node, entryEq)
+
 	res.Status = ResOk
 	return
+}
+
+func entryEq(l *hashtable.HNode, r *hashtable.HNode) bool {
+	le := (*datastructure.Entry)(unsafe.Pointer(l))
+	re := (*datastructure.Entry)(unsafe.Pointer(r))
+	return l.HCode == r.HCode && le.Key == re.Key
 }
