@@ -30,12 +30,12 @@ func (h *HMap) HelpResizing() {
 	nwork := uint64(0)
 	for nwork < KResizingWork && h.t2.size > 0 {
 		from := h.t2.tab[h.resizingPos]
-		if *from == nil {
+		if from == nil {
 			h.resizingPos++
 			continue
 		}
 
-		h.t1.Insert(h.t2.Detach(from))
+		h.t1.Insert(h.t2.Detach(&from))
 		nwork++
 	}
 
