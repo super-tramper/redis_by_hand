@@ -1,7 +1,5 @@
 package hashtable
 
-import "fmt"
-
 type HNode struct {
 	Next  *HNode
 	HCode uint64
@@ -51,7 +49,6 @@ func (h *HTab) LookUp(key *HNode, cmp func(*HNode, *HNode) bool) **HNode {
 
 // Detach 从单链表中删除一个节点
 func (h *HTab) Detach(from **HNode) *HNode {
-	fmt.Println("del del del")
 	node := *from
 	*from = (*from).Next
 	h.size--
