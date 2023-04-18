@@ -55,3 +55,16 @@ func (h *HTab) Detach(from **HNode) *HNode {
 	h.size--
 	return node
 }
+
+func (h *HTab) Scan(f func(*HNode, *[]byte), out *[]byte) {
+	if h.size == 0 {
+		return
+	}
+	for i := uint64(0); i <= h.mask; i++ {
+		node := h.tab[i]
+		for node != nil {
+			f(node, out)
+			node = node.Next
+		}
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"redis_by_hand/constants"
 )
 
 // Packet协议
@@ -34,8 +35,8 @@ type ReqPacket struct {
 }
 
 type ResPacket struct {
-	Status int32
-	Data   string
+	Status constants.RespStatus
+	Data   []byte
 }
 
 func (req *ReqPacket) Decode(payload []byte) error {
@@ -106,7 +107,7 @@ func (res *ResPacket) Decode(payload []byte) error {
 		return err
 	}
 	// read Data
-	res.Data = buffer.String()
+	res.Data = buffer.Bytes()
 	return nil
 }
 

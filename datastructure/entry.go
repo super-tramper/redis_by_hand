@@ -2,6 +2,7 @@ package datastructure
 
 import (
 	"redis_by_hand/datastructure/hashtable"
+	"redis_by_hand/serialization"
 	"unsafe"
 )
 
@@ -16,4 +17,11 @@ func EntryEq(l *hashtable.HNode, r *hashtable.HNode) bool {
 	le := (*Entry)(unsafe.Pointer(l))
 	re := (*Entry)(unsafe.Pointer(r))
 	return le != nil && re != nil && l.HCode == r.HCode && le.Key == re.Key
+}
+
+func EntryKey(h *hashtable.HNode, arg *[]byte) {
+	serialization.SerializeStr(
+		arg,
+		&((*Entry)(unsafe.Pointer(h)).Key),
+	)
 }

@@ -8,16 +8,15 @@ import (
 	log "github.com/sirupsen/logrus"
 	"net"
 	"os"
+	"redis_by_hand/config"
 	"redis_by_hand/network/frame"
 	"redis_by_hand/network/packet"
+	"redis_by_hand/serialization"
 	"strings"
 )
 
-const MaxMsg = 4096
-const PORT = 1234
-
 func main() {
-	addr := fmt.Sprintf("127.0.0.1:%d", PORT)
+	addr := fmt.Sprintf("%s:%d", config.HOST, config.PORT)
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		log.Errorf("create client connction error: %v", err)
@@ -35,7 +34,7 @@ func main() {
 			log.Errorf("client read error: %v", err)
 			continue
 		}
-		fmt.Println("result: status", resp.Status, "data", resp.Data)
+		serialization.OnResponse(&resp.Data)
 	}
 }
 
@@ -98,7 +97,7 @@ func readFromServer(conn net.Conn) (*packet.ResPacket, error) {
 }
 
 func DecodeFrame(conn net.Conn) ([]byte, error) {
-	b := make([]byte, MaxMsg+4)
+	b := make([]byte, config.MaxMsg+4)
 	if _, err := conn.Read(b); err != nil {
 		return nil, err
 	}

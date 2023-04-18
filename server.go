@@ -6,21 +6,16 @@ import (
 	"github.com/panjf2000/gnet"
 	"github.com/panjf2000/gnet/pkg/pool/goroutine"
 	log "github.com/sirupsen/logrus"
+	"redis_by_hand/config"
+	"redis_by_hand/constants"
 	"redis_by_hand/datastructure"
 	"redis_by_hand/datastructure/hashtable"
 	"redis_by_hand/network/frame"
 	"redis_by_hand/network/packet"
+	"redis_by_hand/serialization"
 	"redis_by_hand/tools"
 	"time"
 	"unsafe"
-)
-
-const PORT = 1234
-const MaxMsg = 4096
-const (
-	ResOk  = int32(0)
-	ResErr = int32(1)
-	ResNx  = int32(2)
 )
 
 var g_data = struct {
@@ -53,7 +48,7 @@ func customCodecServe(addr string, multicore, async bool, codec gnet.ICodec) {
 func main() {
 	var port int
 	var multicore bool
-	flag.IntVar(&port, "port", PORT, "server port")
+	flag.IntVar(&port, "port", config.PORT, "server port")
 	flag.BoolVar(&multicore, "multicore", false, "multicore")
 	flag.Parse()
 	addr := fmt.Sprintf("tcp://:%d", port)
@@ -90,21 +85,24 @@ func doRequest(req *packet.ReqPacket) (res *packet.ResPacket, err error) {
 	}
 
 	cmd := req.Payload[0].Str
+	res = &packet.ResPacket{}
 	if cmdCnt == 2 && cmd == "get" {
-		res = doGet(req)
+		doGet(req, res)
 	} else if cmdCnt == 3 && cmd == "set" {
-		res = doSet(req)
+		doSet(req, res)
 	} else if cmdCnt == 2 && cmd == "del" {
-		res = doDel(req)
+		doDel(req, res)
+	} else if cmdCnt == 1 && cmd == "keys" {
+		doKeys(res)
 	} else {
-		res = &packet.ResPacket{Status: ResErr, Data: "Unknown cmd"}
+		res.Status = constants.ResErr
+		msg := "Unknown cmd"
+		serialization.SerializeErr(&res.Data, constants.ErrUnknown, &msg)
 	}
 	return
 }
 
-func doGet(req *packet.ReqPacket) (res *packet.ResPacket) {
-	res = &packet.ResPacket{}
-
+func doGet(req *packet.ReqPacket, res *packet.ResPacket) {
 	key := datastructure.Entry{}
 	key.Key = req.Payload[1].Str
 
@@ -112,22 +110,23 @@ func doGet(req *packet.ReqPacket) (res *packet.ResPacket) {
 
 	node := g_data.db.Lookup(&key.Node, datastructure.EntryEq)
 	if node == nil {
-		res.Status = ResNx
+		res.Status = constants.ResNx
+		serialization.SerializeNil(&res.Data)
 		return
 	}
 
 	val := (*datastructure.Entry)(unsafe.Pointer(node)).Val
-	if len(val) > MaxMsg {
-		panic("value too long.")
+	if len(val) > config.MaxMsg {
+		msg := "too big"
+		serialization.SerializeErr(&res.Data, constants.Err2Big, &msg)
 	}
-	res.Data = val
-	res.Status = ResOk
+	serialization.SerializeStr(&res.Data, &val)
+	res.Status = constants.ResOk
 
 	return
 }
 
-func doSet(req *packet.ReqPacket) (res *packet.ResPacket) {
-	res = &packet.ResPacket{}
+func doSet(req *packet.ReqPacket, res *packet.ResPacket) {
 	key := datastructure.Entry{}
 	key.Key = req.Payload[1].Str
 	val := req.Payload[2].Str
@@ -145,19 +144,30 @@ func doSet(req *packet.ReqPacket) (res *packet.ResPacket) {
 		(*datastructure.Entry)(unsafe.Pointer(node)).Val = val
 	}
 
-	res.Status = ResOk
+	res.Status = constants.ResOk
+	serialization.SerializeNil(&res.Data)
 
 	return
 }
 
-func doDel(req *packet.ReqPacket) (res *packet.ResPacket) {
-	res = &packet.ResPacket{}
+func doDel(req *packet.ReqPacket, res *packet.ResPacket) {
 	key := datastructure.Entry{}
 	key.Key = req.Payload[1].Str
 	key.Node.HCode = tools.StrHash([]byte(key.Key), uint64(len(key.Key)))
 
-	g_data.db.Pop(&key.Node, datastructure.EntryEq)
+	node := g_data.db.Pop(&key.Node, datastructure.EntryEq)
+	out := 0
+	if node != nil {
+		out = 1
+	}
 
-	res.Status = ResOk
+	res.Status = constants.ResOk
+	serialization.SerializeInt(&res.Data, int64(out))
 	return
+}
+
+func doKeys(res *packet.ResPacket) {
+	serialization.SerializeArr(&res.Data, uint32(g_data.db.Size()))
+	g_data.db.T1.Scan(datastructure.EntryKey, &res.Data)
+	g_data.db.T2.Scan(datastructure.EntryKey, &res.Data)
 }
