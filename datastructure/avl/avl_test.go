@@ -109,7 +109,7 @@ func avlVerify(parent *Node, node *Node) error {
 		if node.right.parent != node {
 			return fmt.Errorf("right children parent error.")
 		}
-		if !((*Data)(unsafe.Pointer(node.right)).val >= val) {
+		if (*Data)(unsafe.Pointer(node.right)).val < val {
 			return fmt.Errorf(
 				"right children value error, expected: %d, got: %d",
 				val,
@@ -318,32 +318,35 @@ func TestRandomInsertion(t *testing.T) {
 	}
 }
 
-//func TestRandomDeletion(t *testing.T) {
-//	c := &Container{}
-//	ref := &[]uint32{}
-//	for i := uint32(0); i < 1000; i += 3 {
-//		add(c, i)
-//		*ref = append(*ref, i)
-//	}
-//
-//	for i := uint32(0); i < 200; i += 3 {
-//		val := uint32(rand.Int() % 1000)
-//		fmt.Println("delete ", val)
-//		it := findPosition(ref, val)
-//		if it == -1 {
-//			if del(c, val) {
-//				t.Fatalf("TestRandomDeletion deleted nonexisting value: %d", val)
-//			}
-//		} else {
-//			if !del(c, val) {
-//				t.Fatalf("TestRandomDeletion delte failed: %d", val)
-//			}
-//			deletePosition(ref, it)
-//		}
-//
-//		err := containerVerify(c, ref)
-//		if err != nil {
-//			t.Fatalf("TestRandomDeletion loop %d containerVerify error %v", i, err)
-//		}
-//	}
-//}
+func TestRandomDeletion(t *testing.T) {
+	c := &Container{}
+	ref := &[]uint32{}
+	for i := uint32(0); i < 100; i++ {
+		val := uint32(rand.Int() % 1000)
+		add(c, val)
+		*ref = append(*ref, val)
+	}
+	sort.Slice(*ref, func(i, j int) bool {
+		return (*ref)[i] < (*ref)[j]
+	})
+
+	for i := uint32(0); i < 200; i += 3 {
+		val := uint32(rand.Int() % 1000)
+		it := findPosition(ref, val)
+		if it == -1 {
+			if del(c, val) {
+				t.Fatalf("TestRandomDeletion deleted nonexisting value: %d", val)
+			}
+		} else {
+			if !del(c, val) {
+				t.Fatalf("TestRandomDeletion delte failed: %d", val)
+			}
+			deletePosition(ref, it)
+		}
+
+		err := containerVerify(c, ref)
+		if err != nil {
+			t.Fatalf("TestRandomDeletion loop %d containerVerify error %v", i, err)
+		}
+	}
+}
