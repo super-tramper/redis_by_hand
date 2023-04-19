@@ -107,7 +107,7 @@ func avlVerify(parent *Node, node *Node) error {
 	}
 	if node.right != nil {
 		if node.right.parent != node {
-			return fmt.Errorf("right children parent error.")
+			return fmt.Errorf("right children parent error")
 		}
 		if (*Data)(unsafe.Pointer(node.right)).val < val {
 			return fmt.Errorf(
@@ -128,6 +128,13 @@ func extract(node *Node, extracted *[]uint32) {
 	extract(node.right, extracted)
 }
 
+func dispose(c *Container) {
+	for c.root != nil {
+		//node := c.root
+		c.root = AVLDel(c.root)
+	}
+}
+
 func containerVerify(c *Container, ref *[]uint32) error {
 	err := avlVerify(nil, c.root)
 	if err != nil {
@@ -143,8 +150,6 @@ func containerVerify(c *Container, ref *[]uint32) error {
 	}
 	for i := 0; i < len(*ref); i++ {
 		if extracted[i] != (*ref)[i] {
-			fmt.Println(extracted)
-			fmt.Println(*ref)
 			return fmt.Errorf("extracted content error, index: %d", i)
 		}
 	}
@@ -162,6 +167,9 @@ func testInsert(sz uint32) error {
 			add(&c, i)
 			ref = append(ref, i)
 		}
+		sort.Slice(ref, func(i, j int) bool {
+			return ref[i] < ref[j]
+		})
 		err := containerVerify(&c, &ref)
 		if err != nil {
 			return err
@@ -169,15 +177,19 @@ func testInsert(sz uint32) error {
 
 		add(&c, val)
 		ref = append(ref, val)
+		sort.Slice(ref, func(i, j int) bool {
+			return ref[i] < ref[j]
+		})
 		err = containerVerify(&c, &ref)
 		if err != nil {
 			return err
 		}
+		dispose(&c)
 	}
 	return nil
 }
 
-func testInsertDup(sz uint32) {
+func testInsertDup(sz uint32) error {
 	for val := uint32(0); val < sz; val++ {
 		c := Container{}
 		ref := make([]uint32, 0)
@@ -185,21 +197,29 @@ func testInsertDup(sz uint32) {
 			add(&c, i)
 			ref = append(ref, i)
 		}
+		sort.Slice(ref, func(i, j int) bool {
+			return ref[i] < ref[j]
+		})
 		err := containerVerify(&c, &ref)
 		if err != nil {
-			return
+			return err
 		}
 
 		add(&c, val)
 		ref = append(ref, val)
+		sort.Slice(ref, func(i, j int) bool {
+			return ref[i] < ref[j]
+		})
 		err = containerVerify(&c, &ref)
 		if err != nil {
-			return
+			return err
 		}
+		dispose(&c)
 	}
+	return nil
 }
 
-func testRemove(sz uint32) {
+func testRemove(sz uint32) error {
 	for val := uint32(0); val < sz; val++ {
 		c := Container{}
 		ref := make([]uint32, 0)
@@ -207,20 +227,16 @@ func testRemove(sz uint32) {
 			add(&c, i)
 			ref = append(ref, i)
 		}
+		sort.Slice(ref, func(i, j int) bool {
+			return ref[i] < ref[j]
+		})
 		err := containerVerify(&c, &ref)
 		if err != nil {
-			return
-		}
-
-		add(&c, val)
-		ref = append(ref, val)
-		err = containerVerify(&c, &ref)
-		if err != nil {
-			return
+			return fmt.Errorf("append verify error: %v", err)
 		}
 
 		if !del(&c, val) {
-			panic("testRemove del error")
+			return fmt.Errorf("testRemove del error")
 		}
 		for i, v := range ref {
 			if v == val {
@@ -230,12 +246,14 @@ func testRemove(sz uint32) {
 					ref = ref[:i]
 				}
 			}
-			err := containerVerify(&c, &ref)
-			if err != nil {
-				return
-			}
 		}
+		err = containerVerify(&c, &ref)
+		if err != nil {
+			return fmt.Errorf("del verify error: %v", err)
+		}
+		dispose(&c)
 	}
+	return nil
 }
 
 func TestEmptyAVL(t *testing.T) {
@@ -347,6 +365,23 @@ func TestRandomDeletion(t *testing.T) {
 		err := containerVerify(c, ref)
 		if err != nil {
 			t.Fatalf("TestRandomDeletion loop %d containerVerify error %v", i, err)
+		}
+	}
+}
+
+func TestInsertionDeletion(t *testing.T) {
+	for i := uint32(0); i < 200; i++ {
+		err := testInsert(i)
+		if err != nil {
+			t.Fatalf("TestInsertionDeletion testInsert failed: %v", err)
+		}
+		err = testInsertDup(i)
+		if err != nil {
+			t.Fatalf("TestInsertionDeletion testInsertDup failed: %v", err)
+		}
+		err = testRemove(i)
+		if err != nil {
+			t.Fatalf("TestInsertionDeletion testRemove failed: %v", err)
 		}
 	}
 }
