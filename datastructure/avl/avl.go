@@ -128,7 +128,7 @@ func AVLDel(n *Node) *Node {
 			victim = victim.left
 		}
 		root := AVLDel(victim)
-		victim = n
+		*victim = *n
 		if victim.left != nil {
 			victim.left.parent = victim
 		}
