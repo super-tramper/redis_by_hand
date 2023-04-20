@@ -32,13 +32,13 @@ func add(c *Container, val uint32) {
 	for {
 		var from **Node
 		if val < (*Data)(unsafe.Pointer(cur)).val {
-			from = &cur.left
+			from = &cur.Left
 		} else {
-			from = &cur.right
+			from = &cur.Right
 		}
 		if *from == nil {
 			*from = &data.node
-			data.node.parent = cur
+			data.node.Parent = cur
 			c.root = AVLFix(&data.node)
 			break
 		}
@@ -54,9 +54,9 @@ func del(c *Container, val uint32) bool {
 			break
 		}
 		if val < nodeVal {
-			cur = cur.left
+			cur = cur.Left
 		} else {
-			cur = cur.right
+			cur = cur.Right
 		}
 	}
 	if cur == nil {
@@ -70,50 +70,50 @@ func avlVerify(parent *Node, node *Node) error {
 	if node == nil {
 		return nil
 	}
-	if node.parent != parent {
+	if node.Parent != parent {
 		return fmt.Errorf("parent error")
 	}
-	err := avlVerify(node, node.left)
+	err := avlVerify(node, node.Left)
 	if err != nil {
 		return err
 	}
-	err = avlVerify(node, node.right)
+	err = avlVerify(node, node.Right)
 	if err != nil {
 		return err
 	}
 
-	if node.cnt != 1+Cnt(node.left)+Cnt(node.right) {
+	if node.Cnt != 1+Cnt(node.Left)+Cnt(node.Right) {
 		return fmt.Errorf("cnt error")
 	}
 
-	l := Depth(node.left)
-	r := Depth(node.right)
+	l := Depth(node.Left)
+	r := Depth(node.Right)
 
 	if !(l == r || l+1 == r || l == r+1) {
 		return fmt.Errorf("balance error")
 	}
-	if node.depth != 1+tools.Max(l, r) {
-		return fmt.Errorf("depth error, expected %d, actual %d", node.depth, 1+tools.Max(l, r))
+	if node.Depth != 1+tools.Max(l, r) {
+		return fmt.Errorf("depth error, expected %d, actual %d", node.Depth, 1+tools.Max(l, r))
 	}
 
 	val := (*Data)(unsafe.Pointer(node)).val
-	if node.left != nil {
-		if node.left.parent != node {
+	if node.Left != nil {
+		if node.Left.Parent != node {
 			return fmt.Errorf("left children parent error")
 		}
-		if (*Data)(unsafe.Pointer(node.left)).val > val {
+		if (*Data)(unsafe.Pointer(node.Left)).val > val {
 			return fmt.Errorf("left children value greater than parent value")
 		}
 	}
-	if node.right != nil {
-		if node.right.parent != node {
+	if node.Right != nil {
+		if node.Right.Parent != node {
 			return fmt.Errorf("right children parent error")
 		}
-		if (*Data)(unsafe.Pointer(node.right)).val < val {
+		if (*Data)(unsafe.Pointer(node.Right)).val < val {
 			return fmt.Errorf(
 				"right children value error, expected: %d, got: %d",
 				val,
-				(*Data)(unsafe.Pointer(node.right)).val)
+				(*Data)(unsafe.Pointer(node.Right)).val)
 		}
 	}
 	return nil
@@ -123,9 +123,9 @@ func extract(node *Node, extracted *[]uint32) {
 	if node == nil {
 		return
 	}
-	extract(node.left, extracted)
+	extract(node.Left, extracted)
 	*extracted = append(*extracted, (*Data)(unsafe.Pointer(node)).val)
-	extract(node.right, extracted)
+	extract(node.Right, extracted)
 }
 
 func dispose(c *Container) {

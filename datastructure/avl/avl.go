@@ -3,60 +3,60 @@ package avl
 import "redis_by_hand/tools"
 
 type Node struct {
-	depth  uint32
-	cnt    uint32
-	left   *Node
-	right  *Node
-	parent *Node
+	Depth  uint32
+	Cnt    uint32
+	Left   *Node
+	Right  *Node
+	Parent *Node
 }
 
 func (n *Node) Init() {
-	n.depth = 1
-	n.cnt = 1
+	n.Depth = 1
+	n.Cnt = 1
 }
 
 func Depth(n *Node) uint32 {
 	if n != nil {
-		return n.depth
+		return n.Depth
 	}
 	return 0
 }
 
 func Cnt(n *Node) uint32 {
 	if n != nil {
-		return n.cnt
+		return n.Cnt
 	}
 	return 0
 }
 
 func (n *Node) Update() {
-	n.depth = 1 + tools.Max(Depth(n.left), Depth(n.right))
-	n.cnt = 1 + Cnt(n.left) + Cnt(n.right)
+	n.Depth = 1 + tools.Max(Depth(n.Left), Depth(n.Right))
+	n.Cnt = 1 + Cnt(n.Left) + Cnt(n.Right)
 }
 
 func RotLeft(n *Node) *Node {
-	right := n.right
-	if right.left != nil {
-		right.left.parent = n
+	right := n.Right
+	if right.Left != nil {
+		right.Left.Parent = n
 	}
-	n.right = right.left
-	right.left = n
-	right.parent = n.parent
-	n.parent = right
+	n.Right = right.Left
+	right.Left = n
+	right.Parent = n.Parent
+	n.Parent = right
 	n.Update()
 	right.Update()
 	return right
 }
 
 func RotRight(n *Node) *Node {
-	left := n.left
-	if left.right != nil {
-		left.right.parent = n
+	left := n.Left
+	if left.Right != nil {
+		left.Right.Parent = n
 	}
-	n.left = left.right
-	left.right = n
-	left.parent = n.parent
-	n.parent = left
+	n.Left = left.Right
+	left.Right = n
+	left.Parent = n.Parent
+	n.Parent = left
 	n.Update()
 	left.Update()
 	return left
@@ -64,15 +64,15 @@ func RotRight(n *Node) *Node {
 
 // AVLFixLeft 左子树太深时调整左子树
 func AVLFixLeft(root *Node) *Node {
-	if root.left != nil && Depth(root.left.left) < Depth(root.left.right) {
-		root.left = RotLeft(root.left)
+	if root.Left != nil && Depth(root.Left.Left) < Depth(root.Left.Right) {
+		root.Left = RotLeft(root.Left)
 	}
 	return RotRight(root)
 }
 
 func AVLFixRight(root *Node) *Node {
-	if root.right != nil && Depth(root.right.right) < Depth(root.right.left) {
-		root.right = RotRight(root.right)
+	if root.Right != nil && Depth(root.Right.Right) < Depth(root.Right.Left) {
+		root.Right = RotRight(root.Right)
 	}
 	return RotLeft(root)
 }
@@ -80,14 +80,14 @@ func AVLFixRight(root *Node) *Node {
 func AVLFix(n *Node) *Node {
 	for {
 		n.Update()
-		l := Depth(n.left)
-		r := Depth(n.right)
+		l := Depth(n.Left)
+		r := Depth(n.Right)
 		var from **Node
-		if n.parent != nil {
-			if n.parent.left == n {
-				from = &n.parent.left
+		if n.Parent != nil {
+			if n.Parent.Left == n {
+				from = &n.Parent.Left
 			} else {
-				from = &n.parent.right
+				from = &n.Parent.Right
 			}
 		}
 		if l == r+2 {
@@ -99,48 +99,48 @@ func AVLFix(n *Node) *Node {
 			return n
 		}
 		*from = n
-		n = n.parent
+		n = n.Parent
 	}
 }
 
 func AVLDel(n *Node) *Node {
-	if n.right == nil {
+	if n.Right == nil {
 		// 无右子树，用左子树代替节点
 		// 将左子树挂接到父节点
-		parent := n.parent
-		if n.left != nil {
-			n.left.parent = parent
+		parent := n.Parent
+		if n.Left != nil {
+			n.Left.Parent = parent
 		}
 		if parent != nil {
-			if parent.left == n {
-				parent.left = n.left
+			if parent.Left == n {
+				parent.Left = n.Left
 			} else {
-				parent.right = n.left
+				parent.Right = n.Left
 			}
 			return AVLFix(parent)
 		} else {
-			return n.left
+			return n.Left
 		}
 	} else {
 		// 将该节点与它的下一个兄弟进行交换
-		victim := n.right
-		for victim.left != nil {
-			victim = victim.left
+		victim := n.Right
+		for victim.Left != nil {
+			victim = victim.Left
 		}
 		root := AVLDel(victim)
 		*victim = *n
-		if victim.left != nil {
-			victim.left.parent = victim
+		if victim.Left != nil {
+			victim.Left.Parent = victim
 		}
-		if victim.right != nil {
-			victim.right.parent = victim
+		if victim.Right != nil {
+			victim.Right.Parent = victim
 		}
-		parent := n.parent
+		parent := n.Parent
 		if parent != nil {
-			if parent.left == n {
-				parent.left = victim
+			if parent.Left == n {
+				parent.Left = victim
 			} else {
-				parent.right = victim
+				parent.Right = victim
 			}
 			return root
 		} else {
