@@ -385,3 +385,46 @@ func TestInsertionDeletion(t *testing.T) {
 		}
 	}
 }
+
+func TestAVLOffset(t *testing.T) {
+	for i := uint32(1); i < 500; i++ {
+		fmt.Println(i)
+		err := testAVLOffset(i)
+		if err != nil {
+			t.Fatalf("TestAVLOffset failed: %v", err)
+		}
+	}
+}
+
+func testAVLOffset(sz uint32) error {
+	c := &Container{}
+	for i := uint32(0); i < sz; i++ {
+		add(c, i)
+	}
+
+	min := c.root
+	for min != nil && min.Left != nil {
+		min = min.Left
+	}
+	for i := uint32(0); i < sz; i++ {
+		node := AVLOffset(min, int64(i))
+		if (*Data)(unsafe.Pointer(node)).val != i {
+			return fmt.Errorf("val not equals")
+		}
+
+		for j := uint32(0); j < sz; j++ {
+			offset := int64(j - i)
+			n2 := AVLOffset(node, offset)
+			if (*Data)(unsafe.Pointer(n2)).val != j {
+				return fmt.Errorf("val not equals")
+			}
+		}
+		if AVLOffset(node, -(int64(i))-1) == nil {
+			return fmt.Errorf("offset1 %d error", -(int64(i))-1)
+		}
+		if AVLOffset(node, int64(sz-i)) == nil {
+			return fmt.Errorf("offset2 %d error", int64(sz-i))
+		}
+	}
+	return nil
+}

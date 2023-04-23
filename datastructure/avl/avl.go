@@ -148,3 +148,28 @@ func AVLDel(n *Node) *Node {
 		}
 	}
 }
+
+func AVLOffset(node *Node, offset int64) *Node {
+	pos := int64(0)
+	for offset != pos {
+		if pos < offset && pos+int64(Cnt(node.Right)) >= offset {
+			node = node.Right
+			pos += int64(Cnt(node.Left)) + 1
+		} else if pos > offset && pos-int64(Cnt(node.Left)) <= offset {
+			node = node.Left
+			pos -= int64(Cnt(node.Right)) + 1
+		} else {
+			parent := node.Parent
+			if parent == nil {
+				return nil
+			}
+			if parent.Right == node {
+				pos -= int64(Cnt(node.Left)) + 1
+			} else {
+				pos += int64(Cnt(node.Right)) + 1
+			}
+			node = parent
+		}
+	}
+	return node
+}

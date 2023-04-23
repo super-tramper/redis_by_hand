@@ -80,3 +80,10 @@ func Max(a uint32, b uint32) uint32 {
 	}
 	return b
 }
+
+func Min(a uint32, b uint32) uint32 {
+	if a > b {
+		return b
+	}
+	return a
+}
