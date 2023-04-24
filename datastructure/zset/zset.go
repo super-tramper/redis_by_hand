@@ -129,3 +129,22 @@ func (zs *ZSet) Query(score float64, name *string, length uint32, offset int64) 
 	}
 	return nil
 }
+
+func (zs *ZSet) Pop(name *string, length uint32) *ZNode {
+	if zs.Tree == nil {
+		return nil
+	}
+
+	var key HKey
+	key.Node.HCode = tools.StrHash([]byte(*name), uint64(length))
+	key.Name = name
+	key.Length = length
+	found := zs.Hmap.Pop(&key.Node, HCmp)
+	if found == nil {
+		return nil
+	}
+
+	node := (*ZNode)(unsafe.Pointer(uintptr(unsafe.Pointer(found)) - unsafe.Sizeof(avl.Node{})))
+	zs.Tree = avl.AVLDel(&node.Tree)
+	return node
+}
