@@ -412,8 +412,7 @@ func testAVLOffset(sz uint32) error {
 		}
 
 		for j := uint32(0); j < sz; j++ {
-			offset := int64(j - i)
-			fmt.Println(sz, i, j)
+			offset := int64(j) - int64(i)
 			n2 := AVLOffset(node, offset)
 			if (*Data)(unsafe.Pointer(n2)).val != j {
 				return fmt.Errorf("val not equals")
