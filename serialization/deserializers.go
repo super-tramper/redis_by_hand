@@ -2,6 +2,7 @@ package serialization
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"redis_by_hand/constants"
 	"redis_by_hand/tools"
@@ -39,4 +40,13 @@ func OnResponse(b *[]byte) {
 	default:
 		fmt.Println("bad response")
 	}
+}
+
+func DeserializeSerType(b *[]byte) constants.SerType {
+	buffer := bytes.NewBuffer(*b)
+	var t constants.SerType
+	if err := binary.Read(buffer, binary.BigEndian, &t); err != nil {
+		return constants.SerType(-1)
+	}
+	return t
 }

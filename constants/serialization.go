@@ -14,6 +14,7 @@ const (
 	SerStr
 	SerInt
 	SerArr
+	SerDbl
 )
 
 func SerTypeBytes(n SerType) []byte {

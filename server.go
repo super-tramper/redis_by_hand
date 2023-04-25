@@ -10,10 +10,12 @@ import (
 	"redis_by_hand/constants"
 	"redis_by_hand/datastructure"
 	"redis_by_hand/datastructure/hashtable"
+	"redis_by_hand/datastructure/zset"
 	"redis_by_hand/network/frame"
 	"redis_by_hand/network/packet"
 	"redis_by_hand/serialization"
 	"redis_by_hand/tools"
+	"strconv"
 	"time"
 	"unsafe"
 )
@@ -170,4 +172,135 @@ func doKeys(res *packet.ResPacket) {
 	serialization.SerializeArr(&res.Data, uint32(g_data.db.Size()))
 	g_data.db.T1.Scan(datastructure.EntryKey, &res.Data)
 	g_data.db.T2.Scan(datastructure.EntryKey, &res.Data)
+}
+
+func doZAdd(req *packet.ReqPacket, res *packet.ResPacket) {
+	var score float64 = 0
+	score, err := strconv.ParseFloat(req.Payload[2].Str, 64)
+	if err != nil {
+		return
+	}
+
+	var key datastructure.Entry
+	key.Key = req.Payload[1].Str
+	key.Node.HCode = tools.StrHash([]byte(key.Key), uint64(len(key.Key)))
+	hNode := g_data.db.Lookup(&key.Node, datastructure.EntryEq)
+
+	var ent *datastructure.Entry
+	if hNode == nil {
+		ent = &datastructure.Entry{}
+		ent.Key = key.Key
+		ent.Node.HCode = key.Node.HCode
+		ent.Type_ = constants.TZSet
+		ent.ZSet = &zset.ZSet{}
+		g_data.db.Insert(&ent.Node)
+	} else {
+		ent = (*datastructure.Entry)(unsafe.Pointer(hNode))
+		if ent.Type_ != constants.TZSet {
+			res.Status = constants.ResErr
+			msg := "expected zset"
+			serialization.SerializeErr(&res.Data, constants.ErrTyp, &msg)
+		}
+	}
+
+	name := req.Payload[3].Str
+	added := ent.ZSet.Add(&name, uint32(len(name)), score)
+	res.Status = constants.ResOk
+	serialization.SerializeInt(&res.Data, int64(tools.BToI(added)))
+	return
+}
+
+func expectZSet(out *packet.ResPacket, s *string, ent **datastructure.Entry) bool {
+	var key datastructure.Entry
+	key.Key = *s
+	key.Node.HCode = tools.StrHash([]byte(key.Key), uint64(len(key.Key)))
+	hNode := g_data.db.Lookup(&key.Node, datastructure.EntryEq)
+	if hNode == nil {
+		serialization.SerializeNil(&out.Data)
+		return false
+	}
+
+	*ent = (*datastructure.Entry)(unsafe.Pointer(hNode))
+	if (*ent).Type_ != constants.TZSet {
+		msg := "expected zset"
+		serialization.SerializeErr(&out.Data, constants.ErrTyp, &msg)
+		return false
+	}
+	return true
+}
+
+func doZRem(req *packet.ReqPacket, res *packet.ResPacket) {
+	var ent *datastructure.Entry
+	if !expectZSet(res, &req.Payload[1].Str, &ent) {
+		return
+	}
+
+	name := &req.Payload[2].Str
+	zNode := ent.ZSet.Pop(name, uint32(len(*name)))
+	status := int64(0)
+	if zNode != nil {
+		status = 1
+	}
+	serialization.SerializeInt(&res.Data, status)
+	return
+}
+
+func doScore(req *packet.ReqPacket, res *packet.ResPacket) {
+	var ent *datastructure.Entry
+	if !expectZSet(res, &req.Payload[1].Str, &ent) {
+		return
+	}
+
+	name := &req.Payload[2].Str
+	zNode := ent.ZSet.Lookup(name, uint32(len(*name)))
+	if zNode != nil {
+		serialization.SerializeDbl(&res.Data, zNode.Score)
+		return
+	}
+	serialization.SerializeNil(&res.Data)
+	return
+}
+
+func doZQuery(req *packet.ReqPacket, res *packet.ResPacket) {
+	score := float64(0)
+	score, err := strconv.ParseFloat(req.Payload[2].Str, 64)
+	if err != nil {
+		return
+	}
+
+	name := &req.Payload[3].Str
+	offset := int64(0)
+	limit := int64(0)
+
+	if offset, err = strconv.ParseInt(req.Payload[4].Str, 10, 64); err != nil {
+		msg := "expect int"
+		serialization.SerializeErr(&res.Data, constants.ErrArg, &msg)
+	}
+	if limit, err = strconv.ParseInt(req.Payload[5].Str, 10, 64); err != nil {
+		msg := "expect int"
+		serialization.SerializeErr(&res.Data, constants.ErrArg, &msg)
+	}
+
+	var ent *datastructure.Entry
+	if !expectZSet(res, &req.Payload[1].Str, &ent) {
+		if serialization.DeserializeSerType(&res.Data) == constants.SerNil {
+			res.Data = []byte{}
+			serialization.SerializeArr(&res.Data, uint32(0))
+		}
+		return
+	}
+
+	if limit <= 0 {
+		serialization.SerializeArr(&res.Data, 0)
+	}
+	zNode := ent.ZSet.Query(score, name, uint32(len(*name)), offset)
+	serialization.SerializeArr(&res.Data, 0)
+	n := uint32(0)
+	for zNode != nil && int64(n) < limit {
+		serialization.SerializeStr(&res.Data, zNode.Name)
+		serialization.SerializeDbl(&res.Data, zNode.Score)
+		n += 2
+	}
+	serialization.SerializeUpdateArr(&res.Data, n)
+	return
 }

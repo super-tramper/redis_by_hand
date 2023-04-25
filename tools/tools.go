@@ -42,6 +42,15 @@ func IntBytes(n interface{}) []byte {
 	return buffer.Bytes()
 }
 
+func FloatBytes(val interface{}) []byte {
+	b := make([]byte, 0)
+	buffer := bytes.NewBuffer(b)
+	if err := binary.Write(buffer, binary.BigEndian, val); err != nil {
+		log.Errorf("write serialization type error: %v", err)
+	}
+	return buffer.Bytes()
+}
+
 func DeserializeSerType(b *bytes.Buffer) (t constants.SerType) {
 	err := binary.Read(b, binary.BigEndian, &t)
 	if err != nil {
@@ -86,4 +95,11 @@ func Min(a uint32, b uint32) uint32 {
 		return b
 	}
 	return a
+}
+
+func BToI(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

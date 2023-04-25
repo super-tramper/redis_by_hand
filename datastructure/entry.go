@@ -12,8 +12,8 @@ type Entry struct {
 	Node  hashtable.HNode
 	Key   string
 	Val   string
-	type_ uint32
-	zset  *zset.ZSet
+	Type_ uint32
+	ZSet  *zset.ZSet
 }
 
 func EntryEq(l *hashtable.HNode, r *hashtable.HNode) bool {
