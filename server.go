@@ -96,6 +96,14 @@ func doRequest(req *packet.ReqPacket) (res *packet.ResPacket, err error) {
 		doDel(req, res)
 	} else if cmdCnt == 1 && cmd == "keys" {
 		doKeys(res)
+	} else if cmdCnt == 4 && cmd == "zadd" {
+		doZAdd(req, res)
+	} else if cmdCnt == 3 && cmd == "zrem" {
+		doZRem(req, res)
+	} else if cmdCnt == 3 && cmd == "zscore" {
+		doZScore(req, res)
+	} else if cmdCnt == 6 && cmd == "zquery" {
+		doZQuery(req, res)
 	} else {
 		res.Status = constants.ResErr
 		msg := "Unknown cmd"
@@ -245,7 +253,7 @@ func doZRem(req *packet.ReqPacket, res *packet.ResPacket) {
 	return
 }
 
-func doScore(req *packet.ReqPacket, res *packet.ResPacket) {
+func doZScore(req *packet.ReqPacket, res *packet.ResPacket) {
 	var ent *datastructure.Entry
 	if !expectZSet(res, &req.Payload[1].Str, &ent) {
 		return
