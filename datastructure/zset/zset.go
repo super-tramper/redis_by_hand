@@ -15,6 +15,7 @@ type ZSet struct {
 func (zs *ZSet) TreeAdd(node *ZNode) {
 	if zs.Tree == nil {
 		zs.Tree = &node.Tree
+		return
 	}
 
 	cur := zs.Tree
@@ -84,11 +85,11 @@ func HCmp(node *hashtable.HNode, key *hashtable.HNode) bool {
 		return false
 	}
 	zNode := (*ZNode)(unsafe.Pointer(uintptr(unsafe.Pointer(node)) - unsafe.Sizeof(avl.Node{})))
-	hkey := (*HKey)(unsafe.Pointer(node))
+	hkey := (*HKey)(unsafe.Pointer(key))
 	if zNode.Length != hkey.Length {
 		return false
 	}
-	return string([]byte(*zNode.Name)[:zNode.Length]) == string([]byte(*hkey.Name)[:zNode.Length])
+	return *(zNode.Name) == *(hkey.Name)
 }
 
 func (zs *ZSet) Lookup(name *string, length uint32) *ZNode {

@@ -103,6 +103,7 @@ func AVLFix(n *Node) *Node {
 	}
 }
 
+// AVLDel 删除节点，返回新root
 func AVLDel(n *Node) *Node {
 	if n.Right == nil {
 		// 无右子树，用左子树代替节点

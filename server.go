@@ -125,12 +125,18 @@ func doGet(req *packet.ReqPacket, res *packet.ResPacket) {
 		return
 	}
 
-	val := (*datastructure.Entry)(unsafe.Pointer(node)).Val
-	if len(val) > config.MaxMsg {
+	ent := (*datastructure.Entry)(unsafe.Pointer(node))
+	if ent.Type_ != constants.TStr {
+		res.Status = constants.ResErr
+		msg := "expect string type"
+		serialization.SerializeErr(&res.Data, constants.ErrTyp, &msg)
+	}
+	val := &ent.Val
+	if len(*val) > config.MaxMsg {
 		msg := "too big"
 		serialization.SerializeErr(&res.Data, constants.Err2Big, &msg)
 	}
-	serialization.SerializeStr(&res.Data, &val)
+	serialization.SerializeStr(&res.Data, val)
 	res.Status = constants.ResOk
 
 	return
@@ -151,12 +157,18 @@ func doSet(req *packet.ReqPacket, res *packet.ResPacket) {
 		ent.Val = req.Payload[2].Str
 		g_data.db.Insert(&ent.Node)
 	} else {
-		(*datastructure.Entry)(unsafe.Pointer(node)).Val = val
+		ent := (*datastructure.Entry)(unsafe.Pointer(node))
+		if ent.Type_ != constants.TStr {
+			res.Status = constants.ResErr
+			msg := "expect string type"
+			serialization.SerializeErr(&res.Data, constants.ErrTyp, &msg)
+			return
+		}
+		ent.Val = val
 	}
 
 	res.Status = constants.ResOk
 	serialization.SerializeNil(&res.Data)
-
 	return
 }
 
@@ -186,6 +198,9 @@ func doZAdd(req *packet.ReqPacket, res *packet.ResPacket) {
 	var score float64 = 0
 	score, err := strconv.ParseFloat(req.Payload[2].Str, 64)
 	if err != nil {
+		msg := "expect fp number"
+		res.Status = constants.ResErr
+		serialization.SerializeErr(&res.Data, constants.ErrArg, &msg)
 		return
 	}
 
@@ -208,6 +223,7 @@ func doZAdd(req *packet.ReqPacket, res *packet.ResPacket) {
 			res.Status = constants.ResErr
 			msg := "expected zset"
 			serialization.SerializeErr(&res.Data, constants.ErrTyp, &msg)
+			return
 		}
 	}
 
@@ -309,6 +325,7 @@ func doZQuery(req *packet.ReqPacket, res *packet.ResPacket) {
 		serialization.SerializeDbl(&res.Data, zNode.Score)
 		n += 2
 	}
+	res.Status = constants.ResOk
 	serialization.SerializeUpdateArr(&res.Data, n)
 	return
 }

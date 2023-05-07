@@ -83,6 +83,14 @@ func DeSerializeUint32(b *bytes.Buffer) (t uint32) {
 	return
 }
 
+func DeSerializeDbl(b *bytes.Buffer) (t float64) {
+	err := binary.Read(b, binary.BigEndian, &t)
+	if err != nil {
+		t = -1
+	}
+	return
+}
+
 func Max(a uint32, b uint32) uint32 {
 	if a > b {
 		return a
@@ -91,10 +99,10 @@ func Max(a uint32, b uint32) uint32 {
 }
 
 func Min(a uint32, b uint32) uint32 {
-	if a > b {
-		return b
+	if a < b {
+		return a
 	}
-	return a
+	return b
 }
 
 func BToI(b bool) int {

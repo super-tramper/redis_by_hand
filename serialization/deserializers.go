@@ -28,6 +28,10 @@ func OnResponse(b *[]byte) {
 		val := tools.DeSerializeInt64(buffer)
 		fmt.Println("(int) ", val)
 
+	case constants.SerDbl:
+		val := tools.DeSerializeDbl(buffer)
+		fmt.Println("(dbl)", val)
+
 	case constants.SerArr:
 		c := tools.DeSerializeUint32(buffer)
 		fmt.Println("(arr) len =", c)
