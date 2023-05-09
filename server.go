@@ -9,6 +9,7 @@ import (
 	"redis_by_hand/config"
 	"redis_by_hand/constants"
 	"redis_by_hand/datastructure"
+	"redis_by_hand/datastructure/avl"
 	"redis_by_hand/datastructure/hashtable"
 	"redis_by_hand/datastructure/zset"
 	"redis_by_hand/network/frame"
@@ -323,6 +324,8 @@ func doZQuery(req *packet.ReqPacket, res *packet.ResPacket) {
 	for zNode != nil && int64(n) < limit {
 		serialization.SerializeStr(&res.Data, zNode.Name)
 		serialization.SerializeDbl(&res.Data, zNode.Score)
+		treeNode := avl.AVLOffset(&zNode.Tree, 1)
+		zNode = (*zset.ZNode)(unsafe.Pointer(treeNode))
 		n += 2
 	}
 	res.Status = constants.ResOk

@@ -33,6 +33,15 @@ func Int32Bytes(n int32) []byte {
 	return buffer.Bytes()
 }
 
+func UInt32Bytes(n uint32) []byte {
+	b := make([]byte, 0)
+	buffer := bytes.NewBuffer(b)
+	if err := binary.Write(buffer, binary.BigEndian, n); err != nil {
+		log.Errorf("write serialization type error: %v", err)
+	}
+	return buffer.Bytes()
+}
+
 func IntBytes(n interface{}) []byte {
 	b := make([]byte, 0)
 	buffer := bytes.NewBuffer(b)
@@ -84,10 +93,7 @@ func DeSerializeUint32(b *bytes.Buffer) (t uint32) {
 }
 
 func DeSerializeDbl(b *bytes.Buffer) (t float64) {
-	err := binary.Read(b, binary.BigEndian, &t)
-	if err != nil {
-		t = -1
-	}
+	_ = binary.Read(b, binary.BigEndian, &t)
 	return
 }
 

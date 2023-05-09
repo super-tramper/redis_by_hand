@@ -15,6 +15,7 @@ func SerializeNil(out *[]byte) {
 
 func SerializeStr(out *[]byte, val *string) {
 	*out = append(*out, constants.SerTypeBytes(constants.SerStr)...)
+	*out = append(*out, tools.UInt32Bytes(uint32(len(*val)))...)
 	*out = append(*out, []byte(*val)...)
 }
 
