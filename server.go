@@ -8,9 +8,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"redis_by_hand/config"
 	"redis_by_hand/constants"
-	"redis_by_hand/datastructure"
 	"redis_by_hand/datastructure/avl"
 	"redis_by_hand/datastructure/hashtable"
+	"redis_by_hand/datastructure/heap"
 	"redis_by_hand/datastructure/zset"
 	"redis_by_hand/network/frame"
 	"redis_by_hand/network/packet"
@@ -22,7 +22,8 @@ import (
 )
 
 var g_data = struct {
-	db hashtable.HMap
+	db   hashtable.HMap
+	heap heap.Heap
 }{}
 
 type customCodecServer struct {
@@ -42,7 +43,7 @@ func customCodecServe(addr string, multicore, async bool, codec gnet.ICodec) {
 	var err error
 	codec = frame.Frame{}
 	cs := &customCodecServer{addr: addr, multicore: multicore, async: async, codec: codec, workerPool: goroutine.Default()}
-	err = gnet.Serve(cs, addr, gnet.WithMulticore(multicore), gnet.WithTCPKeepAlive(time.Minute*5), gnet.WithCodec(codec))
+	err = gnet.Serve(cs, addr, gnet.WithMulticore(multicore), gnet.WithTCPKeepAlive(time.Second*5), gnet.WithCodec(codec))
 	if err != nil {
 		panic(err)
 	}
@@ -105,6 +106,10 @@ func doRequest(req *packet.ReqPacket) (res *packet.ResPacket, err error) {
 		doZScore(req, res)
 	} else if cmdCnt == 6 && cmd == "zquery" {
 		doZQuery(req, res)
+	} else if cmdCnt == 3 && cmd == "pexpire" {
+		doExpire(req, res)
+	} else if cmdCnt == 2 && cmd == "pttl" {
+		doTTL(req, res)
 	} else {
 		res.Status = constants.ResErr
 		msg := "Unknown cmd"
@@ -114,19 +119,19 @@ func doRequest(req *packet.ReqPacket) (res *packet.ResPacket, err error) {
 }
 
 func doGet(req *packet.ReqPacket, res *packet.ResPacket) {
-	key := datastructure.Entry{}
+	key := Entry{}
 	key.Key = req.Payload[1].Str
 
 	key.Node.HCode = tools.StrHash([]byte(key.Key), uint64(len(key.Key)))
 
-	node := g_data.db.Lookup(&key.Node, datastructure.EntryEq)
+	node := g_data.db.Lookup(&key.Node, EntryEq)
 	if node == nil {
 		res.Status = constants.ResNx
 		serialization.SerializeNil(&res.Data)
 		return
 	}
 
-	ent := (*datastructure.Entry)(unsafe.Pointer(node))
+	ent := (*Entry)(unsafe.Pointer(node))
 	if ent.Type_ != constants.TStr {
 		res.Status = constants.ResErr
 		msg := "expect string type"
@@ -144,21 +149,21 @@ func doGet(req *packet.ReqPacket, res *packet.ResPacket) {
 }
 
 func doSet(req *packet.ReqPacket, res *packet.ResPacket) {
-	key := datastructure.Entry{}
+	key := Entry{}
 	key.Key = req.Payload[1].Str
 	val := req.Payload[2].Str
 
 	key.Node.HCode = tools.StrHash([]byte(key.Key), uint64(len(key.Key)))
 
-	node := g_data.db.Lookup(&key.Node, datastructure.EntryEq)
+	node := g_data.db.Lookup(&key.Node, EntryEq)
 	if node == nil {
-		ent := datastructure.Entry{}
+		ent := Entry{HeapIdx: -1}
 		ent.Key = key.Key
 		ent.Node.HCode = key.Node.HCode
 		ent.Val = req.Payload[2].Str
 		g_data.db.Insert(&ent.Node)
 	} else {
-		ent := (*datastructure.Entry)(unsafe.Pointer(node))
+		ent := (*Entry)(unsafe.Pointer(node))
 		if ent.Type_ != constants.TStr {
 			res.Status = constants.ResErr
 			msg := "expect string type"
@@ -174,13 +179,15 @@ func doSet(req *packet.ReqPacket, res *packet.ResPacket) {
 }
 
 func doDel(req *packet.ReqPacket, res *packet.ResPacket) {
-	key := datastructure.Entry{}
+	key := Entry{}
 	key.Key = req.Payload[1].Str
 	key.Node.HCode = tools.StrHash([]byte(key.Key), uint64(len(key.Key)))
 
-	node := g_data.db.Pop(&key.Node, datastructure.EntryEq)
+	node := g_data.db.Pop(&key.Node, EntryEq)
 	out := 0
 	if node != nil {
+		ent := (*Entry)(unsafe.Pointer(node))
+		ent.Del()
 		out = 1
 	}
 
@@ -191,8 +198,8 @@ func doDel(req *packet.ReqPacket, res *packet.ResPacket) {
 
 func doKeys(res *packet.ResPacket) {
 	serialization.SerializeArr(&res.Data, uint32(g_data.db.Size()))
-	g_data.db.T1.Scan(datastructure.EntryKey, &res.Data)
-	g_data.db.T2.Scan(datastructure.EntryKey, &res.Data)
+	g_data.db.T1.Scan(EntryKey, &res.Data)
+	g_data.db.T2.Scan(EntryKey, &res.Data)
 }
 
 func doZAdd(req *packet.ReqPacket, res *packet.ResPacket) {
@@ -205,21 +212,21 @@ func doZAdd(req *packet.ReqPacket, res *packet.ResPacket) {
 		return
 	}
 
-	var key datastructure.Entry
+	var key Entry
 	key.Key = req.Payload[1].Str
 	key.Node.HCode = tools.StrHash([]byte(key.Key), uint64(len(key.Key)))
-	hNode := g_data.db.Lookup(&key.Node, datastructure.EntryEq)
+	hNode := g_data.db.Lookup(&key.Node, EntryEq)
 
-	var ent *datastructure.Entry
+	var ent *Entry
 	if hNode == nil {
-		ent = &datastructure.Entry{}
+		ent = &Entry{HeapIdx: -1}
 		ent.Key = key.Key
 		ent.Node.HCode = key.Node.HCode
 		ent.Type_ = constants.TZSet
 		ent.ZSet = &zset.ZSet{}
 		g_data.db.Insert(&ent.Node)
 	} else {
-		ent = (*datastructure.Entry)(unsafe.Pointer(hNode))
+		ent = (*Entry)(unsafe.Pointer(hNode))
 		if ent.Type_ != constants.TZSet {
 			res.Status = constants.ResErr
 			msg := "expected zset"
@@ -235,17 +242,17 @@ func doZAdd(req *packet.ReqPacket, res *packet.ResPacket) {
 	return
 }
 
-func expectZSet(out *packet.ResPacket, s *string, ent **datastructure.Entry) bool {
-	var key datastructure.Entry
+func expectZSet(out *packet.ResPacket, s *string, ent **Entry) bool {
+	var key Entry
 	key.Key = *s
 	key.Node.HCode = tools.StrHash([]byte(key.Key), uint64(len(key.Key)))
-	hNode := g_data.db.Lookup(&key.Node, datastructure.EntryEq)
+	hNode := g_data.db.Lookup(&key.Node, EntryEq)
 	if hNode == nil {
 		serialization.SerializeNil(&out.Data)
 		return false
 	}
 
-	*ent = (*datastructure.Entry)(unsafe.Pointer(hNode))
+	*ent = (*Entry)(unsafe.Pointer(hNode))
 	if (*ent).Type_ != constants.TZSet {
 		msg := "expected zset"
 		serialization.SerializeErr(&out.Data, constants.ErrTyp, &msg)
@@ -255,7 +262,7 @@ func expectZSet(out *packet.ResPacket, s *string, ent **datastructure.Entry) boo
 }
 
 func doZRem(req *packet.ReqPacket, res *packet.ResPacket) {
-	var ent *datastructure.Entry
+	var ent *Entry
 	if !expectZSet(res, &req.Payload[1].Str, &ent) {
 		return
 	}
@@ -271,7 +278,7 @@ func doZRem(req *packet.ReqPacket, res *packet.ResPacket) {
 }
 
 func doZScore(req *packet.ReqPacket, res *packet.ResPacket) {
-	var ent *datastructure.Entry
+	var ent *Entry
 	if !expectZSet(res, &req.Payload[1].Str, &ent) {
 		return
 	}
@@ -306,7 +313,7 @@ func doZQuery(req *packet.ReqPacket, res *packet.ResPacket) {
 		serialization.SerializeErr(&res.Data, constants.ErrArg, &msg)
 	}
 
-	var ent *datastructure.Entry
+	var ent *Entry
 	if !expectZSet(res, &req.Payload[1].Str, &ent) {
 		if serialization.DeserializeSerType(&res.Data) == constants.SerNil {
 			res.Data = []byte{}
@@ -331,4 +338,91 @@ func doZQuery(req *packet.ReqPacket, res *packet.ResPacket) {
 	res.Status = constants.ResOk
 	serialization.SerializeUpdateArr(&res.Data, n)
 	return
+}
+
+func doExpire(req *packet.ReqPacket, res *packet.ResPacket) {
+	//ttl := int64(0)
+	ttl, err := strconv.ParseInt(req.Payload[2].Str, 10, 64)
+	if err != nil {
+		msg := "expect int64"
+		res.Status = constants.ResErr
+		serialization.SerializeErr(&res.Data, constants.ErrArg, &msg)
+		return
+	}
+
+	var key Entry
+	key.Key = req.Payload[1].Str
+	key.Node.HCode = tools.StrHash([]byte(key.Key), uint64(len(key.Key)))
+
+	node := g_data.db.Lookup(&key.Node, EntryEq)
+	if node != nil {
+		ent := (*Entry)(unsafe.Pointer(node))
+		ent.SetTTL(ttl)
+		res.Status = constants.ResOk
+		serialization.SerializeInt(&res.Data, 1)
+		return
+	}
+	res.Status = constants.ResNx
+	serialization.SerializeInt(&res.Data, 0)
+	return
+}
+
+func doTTL(req *packet.ReqPacket, res *packet.ResPacket) {
+	var key Entry
+	key.Key = req.Payload[1].Str
+	key.Node.HCode = tools.StrHash([]byte(key.Key), uint64(len(key.Key)))
+
+	node := g_data.db.Lookup(&key.Node, EntryEq)
+	if node == nil {
+		res.Status = constants.ResNx
+		serialization.SerializeInt(&res.Data, -2)
+		return
+	}
+
+	ent := (*Entry)(unsafe.Pointer(node))
+	if ent.HeapIdx == -1 {
+		res.Status = constants.ResNx
+		serialization.SerializeInt(&res.Data, -1)
+		return
+	}
+
+	exp := g_data.heap[ent.HeapIdx].Val
+	now := uint64(timeStamp())
+	if exp > now {
+		res.Status = constants.ResOk
+		serialization.SerializeInt(&res.Data, int64((exp-now)/1000))
+		return
+	}
+	res.Status = constants.ResNx
+	serialization.SerializeInt(&res.Data, 0)
+	return
+}
+
+func (e *Entry) SetTTL(ttl int64) {
+	// 如果ttl < 0，则删除heapIdx所指向的元素
+	if ttl < 0 && e.HeapIdx != -1 {
+		pos := e.HeapIdx
+		g_data.heap[pos] = g_data.heap[len(g_data.heap)-1]
+		g_data.heap = g_data.heap[:len(g_data.heap)-1]
+		if int(pos) < len(g_data.heap) {
+			g_data.heap.HeapUpdate(pos, int32(len(g_data.heap)))
+		}
+		e.HeapIdx = -1
+		// 否则设置heapIdx处元素的ttl
+	} else if ttl >= 0 {
+		pos := e.HeapIdx
+		if pos == -1 {
+			var item heap.HeapItem
+			item.Ref = &e.HeapIdx
+			g_data.heap = append(g_data.heap, item)
+			pos = int32(len(g_data.heap) - 1)
+		}
+		g_data.heap[pos].Val = uint64(timeStamp()) + uint64(ttl)*1000
+		g_data.heap.HeapUpdate(pos, int32(len(g_data.heap)))
+	}
+}
+
+// Del 一律设置计时器为负数
+func (e *Entry) Del() {
+	e.SetTTL(-1)
 }

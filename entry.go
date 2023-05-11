@@ -1,4 +1,4 @@
-package datastructure
+package main
 
 import (
 	"redis_by_hand/datastructure/hashtable"
@@ -9,11 +9,12 @@ import (
 
 // Entry 侵入式数据结构, 将hashtable节点结构嵌入到有效载荷数据中
 type Entry struct {
-	Node  hashtable.HNode
-	Key   string
-	Val   string
-	Type_ uint32
-	ZSet  *zset.ZSet
+	Node    hashtable.HNode
+	HeapIdx int32
+	Key     string
+	Val     string
+	Type_   uint32
+	ZSet    *zset.ZSet
 }
 
 func EntryEq(l *hashtable.HNode, r *hashtable.HNode) bool {
@@ -27,4 +28,8 @@ func EntryKey(h *hashtable.HNode, arg *[]byte) {
 		arg,
 		&((*Entry)(unsafe.Pointer(h)).Key),
 	)
+}
+
+func (e *Entry) Init() {
+
 }

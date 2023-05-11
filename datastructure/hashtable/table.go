@@ -68,3 +68,7 @@ func (h *HTab) Scan(f func(*HNode, *[]byte), out *[]byte) {
 		}
 	}
 }
+
+func HNodeSame(lhs, rhs *HNode) bool {
+	return lhs == rhs
+}
