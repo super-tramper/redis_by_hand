@@ -72,6 +72,7 @@ func (cs *customCodecServer) React(framePayload []byte, c gnet.Conn) (out []byte
 		action = gnet.Close
 		return
 	}
+	ProcessTimers()
 
 	if out, err = res.Encode(); err != nil {
 		log.Errorf("react error: %v", err)

@@ -29,7 +29,3 @@ func EntryKey(h *hashtable.HNode, arg *[]byte) {
 		&((*Entry)(unsafe.Pointer(h)).Key),
 	)
 }
-
-func (e *Entry) Init() {
-
-}

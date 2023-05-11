@@ -38,8 +38,8 @@ func ProcessTimers() {
 	for !heap.Empty(&g_data.heap) && g_data.heap[0].Val < now {
 		ent := (*Entry)(EntAddrByHeapIdx(g_data.heap[0].Ref))
 		node := g_data.db.Pop(&ent.Node, hashtable.HNodeSame)
-		if node == &ent.Node {
-			panic("same node")
+		if node != &ent.Node {
+			panic("error node")
 		}
 		ent.Del()
 		if nWorks >= kMaxWorks {
